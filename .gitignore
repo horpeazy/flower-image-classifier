@@ -102,5 +102,6 @@ ENV/
 
 .github/**
 flower_data/**
-checkpoint*.pth
 checkpoint.pth
+
+checkpoint*.pth

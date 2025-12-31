@@ -33,19 +33,48 @@ def train(config):
 
     save_model_checkpoint(model, optimizer, training_results, config)
 
+    # Run final validation with detailed output
+    print(f"\n{'='*50}")
+    print("Running final validation on validation dataset...")
+    print(f"{'='*50}\n")
+    validate_model(model, criterion, loaders['validate'], device, verbose=True)
+    print(f"\n{'='*50}")
+    print("Validation completed!")
+    print(f"{'='*50}\n")
+
+    # Run test with detailed output
+    print(f"{'='*50}")
+    print("Running model evaluation on test dataset...")
+    print(f"{'='*50}\n")
     test_model(model, criterion, loaders, device)
+    print(f"\n{'='*50}")
+    print("Testing completed!")
+    print(f"{'='*50}\n")
 
     save_model_checkpoint(model, optimizer, training_results, config)
 
 
-def validate_model(model, criterion, loader, device):
-    """Run validation and return average loss and accuracy."""
+def validate_model(model, criterion, loader, device, verbose=False):
+    """
+    Run validation and return average loss and accuracy.
+    
+    Args:
+        model: The trained PyTorch model
+        criterion: Loss function
+        loader: Validation data loader
+        device: Device to run validation on (CPU/GPU)
+        verbose: If True, prints detailed progress and metrics
+    
+    Returns:
+        tuple: (average_loss, average_accuracy)
+    """
     model.eval()
     total_loss = 0
     total_accuracy = 0
+    total_samples = 0
     
     with torch.no_grad():
-        for images, labels in loader:
+        for batch_idx, (images, labels) in enumerate(loader):
             images, labels = images.to(device), labels.to(device)
             log_probabilities = model.forward(images)
             loss = criterion(log_probabilities, labels)
@@ -55,9 +84,22 @@ def validate_model(model, criterion, loader, device):
             _, top_class = probabilities.topk(1, dim=1)
             equals = top_class == labels.view(*top_class.shape)
             total_accuracy += torch.mean(equals.type(torch.FloatTensor)).item()
+            
+            total_samples += labels.size(0)
+            
+            # Progress indicator if verbose
+            if verbose and (batch_idx + 1) % 10 == 0:
+                print(f"  Processed {batch_idx + 1}/{len(loader)} batches...")
     
     avg_loss = total_loss / len(loader)
     avg_accuracy = total_accuracy / len(loader)
+    
+    # Print detailed results if verbose
+    if verbose:
+        print(f"\nValidation Results:")
+        print(f"  Validation Loss: {avg_loss:.4f}")
+        print(f"  Validation Accuracy: {avg_accuracy:.4f} ({avg_accuracy*100:.2f}%)")
+        print(f"  Total samples evaluated: {total_samples}")
     
     return avg_loss, avg_accuracy
 
@@ -137,24 +179,50 @@ def train_model(model, optimizer, criterion, loaders, model_checkpoint=None, con
     return training_data
 
 def test_model(model, criterion, loaders, device=defaults.DEVICE):
+    """
+    Evaluate model performance on test dataset with detailed output.
+    
+    Args:
+        model: The trained PyTorch model
+        criterion: Loss function
+        loaders: Dictionary containing data loaders
+        device: Device to run evaluation on (CPU/GPU)
+    
+    Returns:
+        tuple: (average_test_loss, average_test_accuracy)
+    """
     test_loss = 0
     test_accuracy = 0
+    total_samples = 0
+    
     with torch.no_grad():
         model.eval()
-        for image, label in loaders['test']:
-            image, label = image.to(device), label.to(device)
-            log_probabilities = model.forward(image)
-            loss = criterion(log_probabilities, label)
+        for batch_idx, (images, labels) in enumerate(loaders['test']):
+            images, labels = images.to(device), labels.to(device)
+            log_probabilities = model.forward(images)
+            loss = criterion(log_probabilities, labels)
             test_loss += loss.item()
 
             probabilities = torch.exp(log_probabilities)
             _, top_class = probabilities.topk(1, dim=1)
-            equals = top_class == label.view(*top_class.shape)
+            equals = top_class == labels.view(*top_class.shape)
             test_accuracy += torch.mean(equals.type(torch.FloatTensor)).item()
+            
+            total_samples += labels.size(0)
+            
+            # Progress indicator
+            if (batch_idx + 1) % 10 == 0:
+                print(f"  Processed {batch_idx + 1}/{len(loaders['test'])} batches...")
 
     avg_test_loss = test_loss / len(loaders['test'])
     avg_test_accuracy = test_accuracy / len(loaders['test'])
-    print(f"Test Loss: {avg_test_loss:.3f}.. Test Accuracy: {avg_test_accuracy:.3f}")
+    
+    print(f"\nTest Results:")
+    print(f"  Test Loss: {avg_test_loss:.4f}")
+    print(f"  Test Accuracy: {avg_test_accuracy:.4f} ({avg_test_accuracy*100:.2f}%)")
+    print(f"  Total samples evaluated: {total_samples}")
+    
+    return avg_test_loss, avg_test_accuracy
 
 def plot_training_results(training_results):
     plt.plot(training_results['training_losses'], label='Training Losses')

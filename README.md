@@ -67,8 +67,10 @@ Each numbered folder (1-102) contains images of a specific flower species. The m
 aipnd-project/
 ├── train.py                    # Command-line training script
 ├── predict.py                  # Command-line prediction script
+├── test.py                     # Command-line testing script
 ├── train_utils.py              # Training utilities and checkpoint management
 ├── predict_utils.py            # Prediction utilities and image processing
+├── test_utils.py               # Testing utilities and model evaluation
 ├── training.py                 # Core training and validation logic
 ├── dataloader.py               # Data loading and preprocessing
 ├── image_classifier.py         # Custom classifier architecture
@@ -153,6 +155,41 @@ Use custom category names:
 ```bash
 python predict.py image.jpg checkpoint.pth --category_names my_categories.json
 ```
+
+### Testing a Model
+
+Evaluate a trained model on the test dataset:
+
+```bash
+python test.py data_dir checkpoint.pth [OPTIONS]
+```
+
+#### Testing Options
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `data_dir` | string | required | Path to the dataset directory |
+| `checkpoint` | string | required | Path to model checkpoint file |
+| `--gpu` | flag | False | Use GPU for testing |
+
+#### Testing Examples
+
+Basic testing:
+```bash
+python test.py flower_data checkpoint.pth
+```
+
+Test with GPU acceleration:
+```bash
+python test.py flower_data checkpoint.pth --gpu
+```
+
+The test script will:
+- Load the trained model from the checkpoint
+- Evaluate it on the entire test dataset
+- Display test loss and accuracy metrics
+- Show progress during evaluation
+- Provide detailed model information from the checkpoint
 
 ## Model Architecture
 
@@ -268,4 +305,3 @@ Potential enhancements for this project:
 - Multi-label classification for images with multiple flowers
 - Attention mechanisms for better interpretability
 - Real-time video classification
-# flower-image-classifier
