@@ -105,3 +105,6 @@ flower_data/**
 checkpoint.pth
 
 checkpoint*.pth
+
+.vscode
+.DS_Store
