@@ -3,7 +3,7 @@ import numpy as np
 
 import torch
 from torchvision import models
-from torch import optim
+from torch import optim, nn
 
 from defaults import MODEL_CONFIG, TRAINING_CONFIG, GPU_DEVICE, CHECKPOINT_FILE_NAME
 
@@ -98,10 +98,35 @@ def _build_model_from_checkpoint(checkpoint, config):
     """Build and configure model from checkpoint."""
     base_model = get_config_value(config, 'arch', 'resnet50')
     model = models.get_model(base_model, weights='DEFAULT')
+    
+    # Auto-detect feature size from the model
+    detected_feature_size = get_feature_size(model)
+    config_feature_size = get_config_value(config, 'feature_size', None)
+    
+    # Use config if provided, otherwise use detected
+    if config_feature_size and config_feature_size != detected_feature_size:
+        print(f"Warning: Specified feature_size {config_feature_size} doesn't match "
+              f"detected size {detected_feature_size}. Using detected size.")
+    
+    # Update config with correct feature size for classifier
+    config['feature_size'] = detected_feature_size
+    
     classifier_model = get_classifier(checkpoint, config)
 
     freeze_model_parameters(model)
-    model.fc = classifier_model
+    
+    # Dynamically determine classifier attribute based on model architecture
+    if hasattr(model, 'fc'):
+        model.fc = classifier_model  # ResNet, AlexNet
+        classifier_params = model.fc.parameters()
+    elif hasattr(model, 'classifier'):
+        model.classifier = classifier_model  # VGG, DenseNet
+        classifier_params = model.classifier.parameters()
+    elif hasattr(model, 'head'):
+        model.head = classifier_model  # Vision Transformer
+        classifier_params = model.head.parameters()
+    else:
+        raise ValueError(f"Unknown classifier attribute for architecture: {base_model}")
 
     fallback_lr = checkpoint.get(
         'learning_rate',
@@ -112,7 +137,7 @@ def _build_model_from_checkpoint(checkpoint, config):
     if checkpoint and 'model_state_dict' in checkpoint:
         model.load_state_dict(checkpoint['model_state_dict'])
 
-    optimizer = optim.Adam(model.fc.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(classifier_params, lr=learning_rate)
     if checkpoint and 'optimizer_state_dict' in checkpoint:
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
@@ -159,6 +184,27 @@ def get_classifier(checkpoint, config):
 def freeze_model_parameters(model):
     for parameter in model.parameters():
         parameter.requires_grad = False
+
+def get_feature_size(model):
+    """
+    Auto-detect the feature size of a pretrained model.
+
+    We only support a few models for now, this can be extended to support more models in the future.
+    """
+    if hasattr(model, 'fc') and hasattr(model.fc, 'in_features'):
+        return model.fc.in_features  # ResNet*, AlexNet
+    elif hasattr(model, 'classifier'):
+        if isinstance(model.classifier, nn.Sequential):
+            # VGG - get first Linear layer input size
+            for layer in model.classifier:
+                if isinstance(layer, nn.Linear):
+                    return layer.in_features
+        elif isinstance(model.classifier, nn.Linear):
+            return model.classifier.in_features
+    elif hasattr(model, 'head') and hasattr(model.head, 'in_features'):
+        return model.head.in_features
+    
+    raise ValueError(f"Could not determine feature size for model: {type(model)}")
 
 def save_model_checkpoint(model, optimizer, training_data, config):
     """Save model checkpoint with training progress and hyperparameters."""

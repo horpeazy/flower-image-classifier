@@ -121,7 +121,7 @@ def get_model_prediction(config, model, device):
         logps = model.forward(image_tensor)
 
         ps = torch.exp(logps)
-        topk = int(getattr(config, 'top_k', 5))
+        topk = int(config.get('top_k', 5))
         top_ps, top_class = ps.topk(topk, dim=1)
 
     return top_ps[0], top_class[0]
@@ -129,7 +129,7 @@ def get_model_prediction(config, model, device):
 def predict(config):
     checkpoint = config['checkpoint']
     image = config['img_path']
-    category_names = getattr(config, 'category_names', 'cat_to_name.json')
+    category_names = config.get('category_names', 'cat_to_name.json')
 
     model, optimizer, _ = load_checkpoint_into_model(checkpoint, config, strict=True)
     device = get_device(config)

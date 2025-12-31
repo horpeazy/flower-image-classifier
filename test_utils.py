@@ -124,3 +124,4 @@ def test_model(model, criterion, loaders, device=defaults.DEVICE):
     
     return avg_test_loss, avg_test_accuracy
 
+
